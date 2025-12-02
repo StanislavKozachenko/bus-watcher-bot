@@ -1,0 +1,6 @@
+python-telegram-bot==21.3
+aiohttp
+aiosqlite
+python-dotenv
+pytz
+tzdata
