@@ -3,12 +3,15 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 import os
+import time
 
 from db import Database
 from watcher import run_watch
 
+# -----------------------------
+# Настройки
+# -----------------------------
 load_dotenv()
-
 LOCAL_MODE = os.getenv("LOCAL_MODE", "0") == "1"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DB_PATH = os.getenv("DATABASE_PATH", "watcher.db")
@@ -16,8 +19,13 @@ DB_PATH = os.getenv("DATABASE_PATH", "watcher.db")
 db = Database(DB_PATH)
 active_tasks = {}
 
+# -----------------------------
+# Handlers
+# -----------------------------
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Привет! Я — бот мониторинга SmileBus. Используй /watch, /list, /stop.")
+    await update.message.reply_text(
+        "Привет! Я — бот мониторинга SmileBus. Используй /watch, /list, /stop."
+    )
 
 async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 5:
@@ -39,7 +47,10 @@ async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     watches = await db.get_active_watches()
     new_watch_id = watches[-1][0]
 
-    task = asyncio.create_task(run_watch(new_watch_id, user_id, date, start_time, end_time, city_from_id, city_to_id, context.bot, db))
+    task = asyncio.create_task(
+        run_watch(new_watch_id, user_id, date, start_time, end_time,
+                  city_from_id, city_to_id, context.bot, db)
+    )
     active_tasks[new_watch_id] = task
 
     city_from_name = "Минск" if city_from_id == 1 else f"ID {city_from_id}"
@@ -69,70 +80,73 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) == 0:
         await update.message.reply_text("Использование: /stop <watch_id>")
         return
+
     watch_id = int(context.args[0])
     if watch_id in active_tasks:
         active_tasks[watch_id].cancel()
         del active_tasks[watch_id]
+
     await db.deactivate_watch(watch_id)
     await update.message.reply_text("🛑 Мониторинг остановлен.")
 
+# -----------------------------
+# Восстановление активных задач
+# -----------------------------
 async def restore_tasks(application):
     watches = await db.get_active_watches()
     for w_id, user_id, date, start_time, end_time, city_from_id, city_to_id in watches:
-        task = asyncio.create_task(run_watch(w_id, user_id, date, start_time, end_time, city_from_id, city_to_id, application.bot, db))
+        task = asyncio.create_task(
+            run_watch(w_id, user_id, date, start_time, end_time,
+                      city_from_id, city_to_id, application.bot, db)
+        )
         active_tasks[w_id] = task
+
+# -----------------------------
+# Main
+# -----------------------------
+async def runner_local():
+    """Локальный запуск для разработки (PyCharm-safe)"""
+    await db.init()
+    await db.cleanup_old_watches()
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("watch", cmd_watch))
+    app.add_handler(CommandHandler("list", cmd_list))
+    app.add_handler(CommandHandler("stop", cmd_stop))
+
+    await restore_tasks(app)
+    await app.initialize()
+    await app.start()
+    print("Bot started (LOCAL MODE)")
+
+    offset = 0
+    while True:
+        updates = await app.bot.get_updates(offset=offset, timeout=10)
+        for upd in updates:
+            offset = upd.update_id + 1
+            await app.process_update(upd)
+        time.sleep(0.5)
+
+async def runner_server():
+    """Запуск на сервере/дев/продакшене"""
+    await db.init()
+    await db.cleanup_old_watches()
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("watch", cmd_watch))
+    app.add_handler(CommandHandler("list", cmd_list))
+    app.add_handler(CommandHandler("stop", cmd_stop))
+
+    await restore_tasks(app)
+    print("Bot started (SERVER MODE)")
+    app.run_polling()
 
 if __name__ == "__main__":
     if LOCAL_MODE:
         print("Running in LOCAL_MODE (PyCharm-safe)")
-
-
-        async def runner_local():
-            await db.init()
-
-            app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-            app.add_handler(CommandHandler("start", cmd_start))
-            app.add_handler(CommandHandler("watch", cmd_watch))
-            app.add_handler(CommandHandler("list", cmd_list))
-            app.add_handler(CommandHandler("stop", cmd_stop))
-
-            await db.cleanup_old_watches()
-            await restore_tasks(app)
-
-            await app.initialize()
-            await app.start()
-            print("Bot started (LOCAL MODE)")
-
-            # ---- Локальное polling ----
-            import time
-            offset = 0
-
-            while True:
-                updates = await app.bot.get_updates(offset=offset, timeout=10)
-
-                for upd in updates:
-                    offset = upd.update_id + 1
-                    await app.process_update(upd)
-
-                time.sleep(0.5)
-
-
         asyncio.run(runner_local())
     else:
         print("Running in SERVER MODE")
-
-        async def main():
-            await db.init()
-            app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-            app.add_handler(CommandHandler("start", cmd_start))
-            app.add_handler(CommandHandler("watch", cmd_watch))
-            app.add_handler(CommandHandler("list", cmd_list))
-            app.add_handler(CommandHandler("stop", cmd_stop))
-
-            await db.cleanup_old_watches()
-            await restore_tasks(app)
-            await app.run_polling()
-
-        asyncio.run(main())
+        asyncio.run(runner_server())
