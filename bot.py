@@ -141,9 +141,7 @@ async def runner_server():
 
     await restore_tasks(app)
     print("Bot started (SERVER MODE)")
-
-    await app.initialize()
-    await app.start()
+    await app.run_polling()
 
 # -----------------------------
 # Entry point
@@ -154,7 +152,4 @@ if __name__ == "__main__":
         asyncio.run(runner_local())
     else:
         print("Running in SERVER MODE")
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.create_task(runner_server())
-        loop.run_forever()
+        asyncio.run(runner_server())
