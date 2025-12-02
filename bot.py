@@ -12,7 +12,6 @@ from watcher import run_watch
 # Настройки
 # -----------------------------
 load_dotenv()
-LOCAL_MODE = os.getenv("LOCAL_MODE", "0") == "1"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DB_PATH = os.getenv("DATABASE_PATH", "watcher.db")
 
@@ -104,7 +103,7 @@ async def restore_tasks(application):
 # -----------------------------
 # Main runners
 # -----------------------------
-async def runner_local():
+async def runner_main():
     """Локальный запуск для разработки (PyCharm-safe)"""
     await db.init()
     await db.cleanup_old_watches()
@@ -118,7 +117,7 @@ async def runner_local():
     await restore_tasks(app)
     await app.initialize()
     await app.start()
-    print("Bot started (LOCAL MODE)")
+    print("Bot started")
 
     offset = 0
     while True:
@@ -133,4 +132,4 @@ async def runner_local():
 # -----------------------------
 if __name__ == "__main__":
     print("Running")
-    asyncio.run(runner_local())
+    asyncio.run(runner_main())
