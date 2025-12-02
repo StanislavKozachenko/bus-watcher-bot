@@ -13,4 +13,3 @@
 
 - `BOT_TOKEN=<токен_бота>`
 - `DATABASE_PATH=watcher.db`
-- `LOCAL_MODE=1`
