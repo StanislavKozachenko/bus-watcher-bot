@@ -102,7 +102,7 @@ async def restore_tasks(application):
         active_tasks[w_id] = task
 
 # -----------------------------
-# Main
+# Main runners
 # -----------------------------
 async def runner_local():
     """Локальный запуск для разработки (PyCharm-safe)"""
@@ -141,8 +141,11 @@ async def runner_server():
 
     await restore_tasks(app)
     print("Bot started (SERVER MODE)")
-    app.run_polling()
+    await app.run_polling()
 
+# -----------------------------
+# Entry point
+# -----------------------------
 if __name__ == "__main__":
     if LOCAL_MODE:
         print("Running in LOCAL_MODE (PyCharm-safe)")
