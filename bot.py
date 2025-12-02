@@ -140,7 +140,9 @@ async def runner_server():
     app.add_handler(CommandHandler("stop", cmd_stop))
 
     await restore_tasks(app)
+
     print("Bot started (SERVER MODE)")
+    await app.run_polling()
 
 # -----------------------------
 # Entry point
@@ -150,7 +152,14 @@ if __name__ == "__main__":
         print("Running in LOCAL_MODE (PyCharm-safe)")
         asyncio.run(runner_local())
     else:
-        print("Running in SERVER MODE")
-        loop = asyncio.get_event_loop()
+        # Server mode
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
         loop.create_task(runner_server())
         loop.run_forever()
