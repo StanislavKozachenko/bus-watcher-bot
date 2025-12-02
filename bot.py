@@ -154,6 +154,7 @@ if __name__ == "__main__":
         asyncio.run(runner_local())
     else:
         print("Running in SERVER MODE")
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         loop.create_task(runner_server())
         loop.run_forever()
