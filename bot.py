@@ -152,4 +152,9 @@ if __name__ == "__main__":
         asyncio.run(runner_local())
     else:
         print("Running in SERVER MODE")
-        asyncio.run(runner_server())
+        # Если loop уже есть, просто добавляем задачу
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(runner_server())
+        except RuntimeError:  # loop нет — создаем
+            asyncio.run(runner_server())
