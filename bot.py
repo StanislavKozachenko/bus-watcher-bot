@@ -128,38 +128,9 @@ async def runner_local():
             await app.process_update(upd)
         time.sleep(0.5)
 
-async def runner_server():
-    """Запуск на сервере/дев/продакшене"""
-    await db.init()
-    await db.cleanup_old_watches()
-
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("watch", cmd_watch))
-    app.add_handler(CommandHandler("list", cmd_list))
-    app.add_handler(CommandHandler("stop", cmd_stop))
-
-    await restore_tasks(app)
-
-    print("Bot started (SERVER MODE)")
-    await app.run_polling()
-
 # -----------------------------
 # Entry point
 # -----------------------------
 if __name__ == "__main__":
-    if LOCAL_MODE:
-        print("Running in LOCAL_MODE (PyCharm-safe)")
-        asyncio.run(runner_local())
-    else:
-        # Server mode
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        loop.create_task(runner_server())
-        loop.run_forever()
+    print("Running")
+    asyncio.run(runner_local())
