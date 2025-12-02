@@ -141,7 +141,9 @@ async def runner_server():
 
     await restore_tasks(app)
     print("Bot started (SERVER MODE)")
-    await app.run_polling()
+
+    await app.initialize()
+    await app.start()
 
 # -----------------------------
 # Entry point
