@@ -126,7 +126,7 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     lang = await get_lang(user_id, context, db)
     if not context.args:
-        await update.message.reply_text("Usage: /stop <watch_id>")
+        await update.message.reply_text(t(lang, "stop_usage"))
         return
     watch_id = int(context.args[0])
     await _stop_watch(watch_id, context)

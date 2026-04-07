@@ -60,6 +60,7 @@ STRINGS: dict[str, dict] = {
         "tickets_found": "🎉 Билеты найдены!\nДата: {date}\nВремя: {time}\nМест: {count}\nМаршрут: {route}",
         "lang_prompt": "Текущий язык: 🇷🇺 Русский\nВыбери язык:",
         "lang_set": "🇷🇺 Язык изменён на русский.",
+        "stop_usage": "Использование: /stop <id_задачи>",
     },
     "en": {
         "keyboard_watch": "🔍 Watch tickets",
@@ -118,6 +119,7 @@ STRINGS: dict[str, dict] = {
         "tickets_found": "🎉 Tickets found!\nDate: {date}\nTime: {time}\nSeats: {count}\nRoute: {route}",
         "lang_prompt": "Current language: 🇬🇧 English\nChoose language:",
         "lang_set": "🇬🇧 Language changed to English.",
+        "stop_usage": "Usage: /stop <watch_id>",
     },
 }
 
