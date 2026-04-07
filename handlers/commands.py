@@ -1,38 +1,36 @@
 from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-MAIN_KEYBOARD = ReplyKeyboardMarkup(
-    [["🔍 Следить за билетами", "📋 Мои задачи"], ["❓ Помощь"]],
-    resize_keyboard=True,
-    input_field_placeholder="Выбери действие или введи команду",
-)
+from locales import get_lang, t
 
 
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        "Привет! Я — бот мониторинга SmileBus.\n\n"
-        "Используй кнопки внизу или вводи команды вручную.",
-        reply_markup=MAIN_KEYBOARD,
+def main_keyboard(lang: str) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        [[t(lang, "keyboard_watch"), t(lang, "keyboard_list")], [t(lang, "keyboard_help")]],
+        resize_keyboard=True,
+        input_field_placeholder=t(lang, "keyboard_placeholder"),
     )
 
 
-HELP_TEXT = (
-    "📖 Справка\n\n"
-    "/watch — запустить мониторинг билетов:\n"
-    "  1. Выбери город отправления\n"
-    "  2. Выбери город назначения\n"
-    "  3. Выбери дату\n"
-    "  4. Выбери диапазон времени (или введи вручную)\n"
-    "  5. Подтверди — бот будет проверять каждые 10 сек\n\n"
-    "/list — список твоих задач с кнопкой остановки\n"
-    "/stop <id> — остановить мониторинг по ID\n"
-    "/help — эта справка"
-)
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    db = context.bot_data["db"]
+    user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
+    await update.message.reply_text(
+        t(lang, "start_greeting"),
+        reply_markup=main_keyboard(lang),
+    )
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(HELP_TEXT)
+    db = context.bot_data["db"]
+    user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
+    await update.message.reply_text(t(lang, "help_text"))
 
 
 async def cmd_unknown(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(f"Не понял 🤔\n\n{HELP_TEXT}")
+    db = context.bot_data["db"]
+    user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
+    await update.message.reply_text(t(lang, "unknown_msg") + t(lang, "help_text"))

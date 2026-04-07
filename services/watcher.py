@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pytz
 
+from locales import t
 from services.smilebus import SmileBusAPI
 
 logger = logging.getLogger(__name__)
@@ -13,8 +14,8 @@ def _find_in_range(schedule: list, start_time_str: str, end_time_str: str) -> di
     start = datetime.strptime(start_time_str, "%H:%M").time()
     end = datetime.strptime(end_time_str, "%H:%M").time()
     for item in schedule:
-        t = datetime.strptime(item["time"], "%H:%M").time()
-        if start <= t <= end and item["count"] > 0:
+        t_val = datetime.strptime(item["time"], "%H:%M").time()
+        if start <= t_val <= end and item["count"] > 0:
             return item
     return None
 
@@ -31,6 +32,7 @@ async def run_watch(
     db,
     api: SmileBusAPI,
 ) -> None:
+    lang = await db.get_user_lang(user_id)
     tz = pytz.timezone("Europe/Minsk")
     trip_date = datetime.strptime(date, "%d.%m.%Y").date()
     end_time_obj = datetime.strptime(end_time, "%H:%M").time()
@@ -41,10 +43,7 @@ async def run_watch(
     while True:
         now = datetime.now(tz)
         if now >= deadline:
-            await bot.send_message(
-                user_id,
-                f"⏱ Мониторинг по дате {date} завершён (истекло время наблюдения).",
-            )
+            await bot.send_message(user_id, t(lang, "watch_expired", date=date))
             await db.deactivate_watch(watch_id)
             return
 
@@ -54,13 +53,9 @@ async def run_watch(
             if found:
                 await bot.send_message(
                     chat_id=user_id,
-                    text=(
-                        "🎉 Билеты найдены!\n"
-                        f"Дата: {date}\n"
-                        f"Время: {found['time']}\n"
-                        f"Мест: {found['count']}\n"
-                        f"Маршрут: {found['route_name']}"
-                    ),
+                    text=t(lang, "tickets_found",
+                           date=date, time=found["time"],
+                           count=found["count"], route=found["route_name"]),
                 )
                 await db.deactivate_watch(watch_id)
                 await db.add_history(f"Watch {watch_id}: found at {found['time']}")

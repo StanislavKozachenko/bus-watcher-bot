@@ -30,6 +30,12 @@ class Database:
                     message TEXT
                 )
             """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    user_id INTEGER PRIMARY KEY,
+                    lang TEXT NOT NULL DEFAULT 'ru'
+                )
+            """)
             await db.commit()
 
     async def add_history(self, msg: str):
@@ -74,6 +80,23 @@ class Database:
             )
             await db.commit()
             return cursor.rowcount
+
+    async def get_user_lang(self, user_id: int) -> str:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                "SELECT lang FROM user_settings WHERE user_id = ?", (user_id,)
+            )
+            row = await cursor.fetchone()
+            return row[0] if row else "ru"
+
+    async def set_user_lang(self, user_id: int, lang: str) -> None:
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute(
+                "INSERT INTO user_settings (user_id, lang) VALUES (?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET lang = excluded.lang",
+                (user_id, lang),
+            )
+            await db.commit()
 
     async def cleanup_old_watches(self):
         """

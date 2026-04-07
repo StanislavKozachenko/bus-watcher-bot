@@ -14,6 +14,7 @@ from telegram.ext import (
 )
 
 from config import FEATURED_CITY_IDS, TIME_RANGES, TZ
+from locales import get_lang, t
 from services.smilebus import SmileBusAPI
 from services.watcher import run_watch
 
@@ -25,7 +26,7 @@ FROM_CITY, TO_CITY, DATE, TIME_MANUAL_START, TIME_MANUAL_END, CONFIRM = range(6)
 _CHUNK = 3  # buttons per row
 
 
-def _city_keyboard(cities: dict[int, str]) -> InlineKeyboardMarkup:
+def _city_keyboard(cities: dict[int, str], lang: str) -> InlineKeyboardMarkup:
     featured = [(cid, f"⭐ {name}") for cid, name in cities.items() if cid in FEATURED_CITY_IDS]
     regular = sorted(
         [(cid, name) for cid, name in cities.items() if cid not in FEATURED_CITY_IDS],
@@ -38,40 +39,41 @@ def _city_keyboard(cities: dict[int, str]) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(name, callback_data=f"city:{cid}") for cid, name in regular[i: i + _CHUNK]]
         for i in range(0, len(regular), _CHUNK)
     ]
-    rows.append([InlineKeyboardButton("❌ Cancel", callback_data="watch_cancel")])
+    rows.append([InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="watch_cancel")])
     return InlineKeyboardMarkup(rows)
 
 
-def _date_keyboard() -> InlineKeyboardMarkup:
+def _date_keyboard(lang: str) -> InlineKeyboardMarkup:
     tz = ZoneInfo(TZ)
     today = datetime.now(tz).date()
     buttons = [
         [
-            InlineKeyboardButton("Сегодня", callback_data=f"date:{today.strftime('%d.%m.%Y')}"),
-            InlineKeyboardButton("Завтра", callback_data=f"date:{(today + timedelta(days=1)).strftime('%d.%m.%Y')}"),
-            InlineKeyboardButton("+2 дня", callback_data=f"date:{(today + timedelta(days=2)).strftime('%d.%m.%Y')}"),
+            InlineKeyboardButton(t(lang, "btn_today"), callback_data=f"date:{today.strftime('%d.%m.%Y')}"),
+            InlineKeyboardButton(t(lang, "btn_tomorrow"), callback_data=f"date:{(today + timedelta(days=1)).strftime('%d.%m.%Y')}"),
+            InlineKeyboardButton(t(lang, "btn_plus2"), callback_data=f"date:{(today + timedelta(days=2)).strftime('%d.%m.%Y')}"),
         ],
-        [InlineKeyboardButton("✏️ Ввести дату", callback_data="date:manual")],
-        [InlineKeyboardButton("❌ Cancel", callback_data="watch_cancel")],
+        [InlineKeyboardButton(t(lang, "btn_enter_date"), callback_data="date:manual")],
+        [InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="watch_cancel")],
     ]
     return InlineKeyboardMarkup(buttons)
 
 
-def _time_keyboard() -> InlineKeyboardMarkup:
+def _time_keyboard(lang: str) -> InlineKeyboardMarkup:
+    labels = t(lang, "time_range_labels")
     rows = [
         [InlineKeyboardButton(label, callback_data=f"time:{start}|{end}")]
-        for start, end, label in TIME_RANGES
+        for (start, end), label in zip(TIME_RANGES, labels)
     ]
-    rows.append([InlineKeyboardButton("✏️ Ввести вручную", callback_data="time:manual")])
-    rows.append([InlineKeyboardButton("❌ Cancel", callback_data="watch_cancel")])
+    rows.append([InlineKeyboardButton(t(lang, "btn_enter_manual"), callback_data="time:manual")])
+    rows.append([InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="watch_cancel")])
     return InlineKeyboardMarkup(rows)
 
 
-def _confirm_keyboard() -> InlineKeyboardMarkup:
+def _confirm_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("✅ Запустить", callback_data="confirm:yes"),
-            InlineKeyboardButton("❌ Отмена", callback_data="watch_cancel"),
+            InlineKeyboardButton(t(lang, "btn_run"), callback_data="confirm:yes"),
+            InlineKeyboardButton(t(lang, "btn_confirm_cancel"), callback_data="watch_cancel"),
         ]
     ])
 
@@ -79,9 +81,11 @@ def _confirm_keyboard() -> InlineKeyboardMarkup:
 # ------- Handlers -------
 
 async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    db = context.bot_data["db"]
     api: SmileBusAPI = context.bot_data["api"]
+    lang = await get_lang(update.effective_user.id, context, db)
     cities = api.all_cities()
-    await update.message.reply_text("Выбери город отправления:", reply_markup=_city_keyboard(cities))
+    await update.message.reply_text(t(lang, "select_from_city"), reply_markup=_city_keyboard(cities, lang))
     return FROM_CITY
 
 
@@ -91,16 +95,18 @@ async def select_from_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     city_id = int(query.data.split(":")[1])
     context.user_data["from_id"] = city_id
 
+    db = context.bot_data["db"]
     api: SmileBusAPI = context.bot_data["api"]
+    lang = await get_lang(update.effective_user.id, context, db)
     dests = api.destinations(city_id)
     if not dests:
-        await query.edit_message_text("Нет доступных направлений из этого города.")
+        await query.edit_message_text(t(lang, "no_destinations"))
         return ConversationHandler.END
 
     from_name = api.city_name(city_id)
     await query.edit_message_text(
-        f"Откуда: {from_name}\nВыбери город назначения:",
-        reply_markup=_city_keyboard(dests),
+        t(lang, "select_to_city", from_name=from_name),
+        reply_markup=_city_keyboard(dests, lang),
     )
     return TO_CITY
 
@@ -111,13 +117,15 @@ async def select_to_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     city_id = int(query.data.split(":")[1])
     context.user_data["to_id"] = city_id
 
+    db = context.bot_data["db"]
     api: SmileBusAPI = context.bot_data["api"]
+    lang = await get_lang(update.effective_user.id, context, db)
     from_name = api.city_name(context.user_data["from_id"])
     to_name = api.city_name(city_id)
 
     await query.edit_message_text(
-        f"Откуда: {from_name}\nКуда: {to_name}\nВыбери дату:",
-        reply_markup=_date_keyboard(),
+        t(lang, "select_date", from_name=from_name, to_name=to_name),
+        reply_markup=_date_keyboard(lang),
     )
     return DATE
 
@@ -127,31 +135,36 @@ async def select_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
     value = query.data.split(":", 1)[1]
 
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
+
     if value == "manual":
-        await query.edit_message_text("Введи дату (ДД.ММ.ГГГГ):")
+        await query.edit_message_text(t(lang, "enter_date_manual"))
         context.user_data["awaiting"] = "date"
         return DATE
 
     context.user_data["date"] = value
     await query.edit_message_text(
-        f"Дата: {value}\nВыбери диапазон времени:",
-        reply_markup=_time_keyboard(),
+        t(lang, "select_time", date=value),
+        reply_markup=_time_keyboard(lang),
     )
     return TIME_MANUAL_START
 
 
 async def manual_date_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
     try:
         datetime.strptime(text, "%d.%m.%Y")
     except ValueError:
-        await update.message.reply_text("Неверный формат. Введи дату (ДД.ММ.ГГГГ):")
+        await update.message.reply_text(t(lang, "date_invalid"))
         return DATE
 
     context.user_data["date"] = text
     await update.message.reply_text(
-        f"Дата: {text}\nВыбери диапазон времени:",
-        reply_markup=_time_keyboard(),
+        t(lang, "select_time", date=text),
+        reply_markup=_time_keyboard(lang),
     )
     return TIME_MANUAL_START
 
@@ -161,58 +174,61 @@ async def select_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     await query.answer()
     value = query.data.split(":", 1)[1]
 
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
+
     if value == "manual":
-        await query.edit_message_text("Введи время начала (ЧЧ:ММ):")
+        await query.edit_message_text(t(lang, "enter_time_start"))
         return TIME_MANUAL_START
 
     start, end = value.split("|")
     context.user_data["start_time"] = start
     context.user_data["end_time"] = end
-    return await _show_confirm(update, context)
+    return await _show_confirm(update, context, lang)
 
 
 async def manual_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
     try:
         datetime.strptime(text, "%H:%M")
     except ValueError:
-        await update.message.reply_text("Неверный формат. Введи время начала (ЧЧ:ММ):")
+        await update.message.reply_text(t(lang, "time_start_invalid"))
         return TIME_MANUAL_START
 
     context.user_data["start_time"] = text
-    await update.message.reply_text("Введи время окончания (ЧЧ:ММ):")
+    await update.message.reply_text(t(lang, "enter_time_end"))
     return TIME_MANUAL_END
 
 
 async def manual_time_end(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
     try:
         datetime.strptime(text, "%H:%M")
     except ValueError:
-        await update.message.reply_text("Неверный формат. Введи время окончания (ЧЧ:ММ):")
+        await update.message.reply_text(t(lang, "time_end_invalid"))
         return TIME_MANUAL_END
 
     context.user_data["end_time"] = text
-    return await _show_confirm(update, context)
+    return await _show_confirm(update, context, lang)
 
 
-async def _show_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def _show_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str) -> int:
     api: SmileBusAPI = context.bot_data["api"]
     ud = context.user_data
     from_name = api.city_name(ud["from_id"])
     to_name = api.city_name(ud["to_id"])
 
-    text = (
-        f"Подтверди запуск мониторинга:\n\n"
-        f"Маршрут: {from_name} → {to_name}\n"
-        f"Дата: {ud['date']}\n"
-        f"Время: {ud['start_time']} — {ud['end_time']}"
-    )
+    text = t(lang, "confirm_text", from_name=from_name, to_name=to_name,
+             date=ud["date"], start=ud["start_time"], end=ud["end_time"])
 
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=_confirm_keyboard())
+        await update.callback_query.edit_message_text(text, reply_markup=_confirm_keyboard(lang))
     else:
-        await update.message.reply_text(text, reply_markup=_confirm_keyboard())
+        await update.message.reply_text(text, reply_markup=_confirm_keyboard(lang))
     return CONFIRM
 
 
@@ -225,6 +241,7 @@ async def confirm_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     api: SmileBusAPI = context.bot_data["api"]
     active_tasks: dict = context.bot_data["active_tasks"]
     user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
 
     watch_id = await db.add_watch(
         user_id, ud["date"], ud["start_time"], ud["end_time"],
@@ -243,23 +260,25 @@ async def confirm_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     to_name = api.city_name(ud["to_id"])
 
     await query.edit_message_text(
-        f"🔍 Мониторинг запущен!\n\n"
-        f"Маршрут: {from_name} → {to_name}\n"
-        f"Дата: {ud['date']}\n"
-        f"Время: {ud['start_time']} — {ud['end_time']}"
+        t(lang, "watch_started_msg", from_name=from_name, to_name=to_name,
+          date=ud["date"], start=ud["start_time"], end=ud["end_time"])
     )
     return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("❌ Отменено.")
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
+    await update.message.reply_text(t(lang, "watch_cancelled"))
     return ConversationHandler.END
 
 
 async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("❌ Cancelled.")
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
+    await query.edit_message_text(t(lang, "watch_cancelled"))
     return ConversationHandler.END
 
 
@@ -267,7 +286,7 @@ def build_watch_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
             CommandHandler("watch", cmd_watch),
-            MessageHandler(filters.Regex("^🔍 Следить за билетами$"), cmd_watch),
+            MessageHandler(filters.Regex("^🔍"), cmd_watch),
         ],
         states={
             FROM_CITY: [CallbackQueryHandler(select_from_city, pattern=r"^city:")],
