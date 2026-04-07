@@ -6,6 +6,7 @@ A Telegram bot that monitors SmileBus ticket availability and sends a notificati
 
 - **Step-by-step booking flow** — city, date, and time range selection via inline keyboards; all 33 SmileBus cities supported with route-aware destination filtering
 - **Flexible time input** — choose a preset range (morning / afternoon / evening) or enter a custom start/end time manually
+- **EN/RU interface** — switch language at any time with `/language`; all bot messages are fully translated
 - **Live task list** — `/list` displays all watches in a single message with an inline stop button per active task
 - **Auto-recovery** — active watches are restored automatically on bot restart
 - **Stale task cleanup** — watches past their travel date are deactivated on startup
@@ -17,10 +18,12 @@ A Telegram bot that monitors SmileBus ticket availability and sends a notificati
 main.py               — entry point; builds Application with post_init hook
 config.py             — environment config (BOT_TOKEN, DB_PATH, TIME_RANGES)
 db.py                 — async SQLite wrapper (aiosqlite)
+locales.py            — EN/RU string table and t() helper
 handlers/
   commands.py         — /start (reply keyboard), /help, unknown message fallback
   watch.py            — ConversationHandler for /watch (FROM_CITY → TO_CITY → DATE → TIME → CONFIRM)
   list_handler.py     — /list, /stop, inline stop callback
+  language.py         — /language command and language-switch callback
 services/
   smilebus.py         — SmileBusAPI: city cache, route graph, schedule fetch
   watcher.py          — background polling loop with retry logic
@@ -57,6 +60,7 @@ python main.py
 | `/watch` | Start a new ticket watch (guided dialog) |
 | `/list` | View all watches with inline stop controls |
 | `/stop <id>` | Stop a watch by ID |
+| `/language` | Switch interface language (EN / RU) |
 | `/help` | Show usage instructions |
 
 ## Tech Stack
