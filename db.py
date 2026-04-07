@@ -2,8 +2,11 @@ import aiosqlite
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from config import DB_PATH
+
+
 class Database:
-    def __init__(self, path):
+    def __init__(self, path: str = DB_PATH):
         self.path = path
 
     async def init(self):
