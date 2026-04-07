@@ -6,8 +6,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 from config import BOT_TOKEN
 from db import Database
-from handlers.commands import MAIN_KEYBOARD, cmd_start, cmd_help, cmd_unknown
-from handlers.list_handler import build_list_handlers
+from handlers.commands import cmd_start, cmd_help, cmd_unknown
+from handlers.language import build_language_handlers
+from handlers.list_handler import build_list_handlers, cmd_list
 from handlers.watch import build_watch_handler
 from services.smilebus import SmileBusAPI
 from services.watcher import run_watch
@@ -33,10 +34,11 @@ async def post_init(application) -> None:
     application.bot_data["active_tasks"] = active_tasks
 
     await application.bot.set_my_commands([
-        BotCommand("watch", "Следить за билетами"),
-        BotCommand("list", "Мои задачи"),
-        BotCommand("help", "Справка"),
-        BotCommand("stop", "Остановить мониторинг"),
+        BotCommand("watch", "Следить за билетами / Watch tickets"),
+        BotCommand("list", "Мои задачи / My watches"),
+        BotCommand("language", "Сменить язык / Change language"),
+        BotCommand("help", "Справка / Help"),
+        BotCommand("stop", "Остановить мониторинг / Stop watch"),
     ])
 
     watches = await db.get_active_watches()
@@ -62,13 +64,14 @@ if __name__ == "__main__":
     app.add_handler(build_watch_handler())
     for handler in build_list_handlers():
         app.add_handler(handler)
+    for handler in build_language_handlers():
+        app.add_handler(handler)
 
-    # Кнопки главного меню
-    from handlers.list_handler import cmd_list
-    app.add_handler(MessageHandler(filters.Regex("^📋 Мои задачи$"), cmd_list))
-    app.add_handler(MessageHandler(filters.Regex("^❓ Помощь$"), cmd_help))
+    # Main keyboard button routing (emoji prefix works for all languages)
+    app.add_handler(MessageHandler(filters.Regex("^📋"), cmd_list))
+    app.add_handler(MessageHandler(filters.Regex("^❓"), cmd_help))
 
-    # Fallback: любое нераспознанное сообщение или команда → справка
+    # Fallback
     app.add_handler(MessageHandler(filters.TEXT | filters.COMMAND, cmd_unknown))
 
     logger.info("Bot starting")

@@ -5,6 +5,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes
 
 from config import LIST_PAGE_SIZE
+from locales import get_lang, t
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def _sort_key(row):
     return (0 if active else 1, -parsed.timestamp())
 
 
-def _build_list_message(rows: list, page: int, api) -> tuple[str, InlineKeyboardMarkup]:
+def _build_list_message(rows: list, page: int, api, lang: str) -> tuple[str, InlineKeyboardMarkup]:
     total = len(rows)
     active_count = sum(1 for r in rows if r[6])
 
@@ -28,7 +29,7 @@ def _build_list_message(rows: list, page: int, api) -> tuple[str, InlineKeyboard
     page = max(0, min(page, total_pages - 1))
     page_rows = sorted_rows[page * LIST_PAGE_SIZE:(page + 1) * LIST_PAGE_SIZE]
 
-    header = f"📋 <b>Your watches</b>  •  Active: {active_count} / Total: {total}\n\n"
+    header = t(lang, "list_header", active=active_count, total=total)
 
     lines = []
     last_group = None
@@ -36,7 +37,7 @@ def _build_list_message(rows: list, page: int, api) -> tuple[str, InlineKeyboard
         w_id, date, start, end, from_id, to_id, active = row
         group = "active" if active else "done"
         if group != last_group:
-            lines.append("🟢 <b>Active</b>" if active else "⚪ <b>Completed</b>")
+            lines.append(t(lang, "section_active") if active else t(lang, "section_completed"))
             last_group = group
         from_name = api.city_name(from_id)
         to_name = api.city_name(to_id)
@@ -47,17 +48,16 @@ def _build_list_message(rows: list, page: int, api) -> tuple[str, InlineKeyboard
 
     buttons = []
 
-    # Stop buttons for active tasks on this page
     for row in page_rows:
         w_id, date, start, end, from_id, to_id, active = row
         if active:
-            buttons.append([InlineKeyboardButton(f"🛑 Stop #{w_id}", callback_data=f"stop:{w_id}")])
+            buttons.append([InlineKeyboardButton(
+                t(lang, "btn_stop", watch_id=w_id), callback_data=f"stop:{w_id}"
+            )])
 
-    # Clear completed button (only if there are completed tasks)
     if any(not r[6] for r in rows):
-        buttons.append([InlineKeyboardButton("🗑 Clear completed", callback_data="list_clear")])
+        buttons.append([InlineKeyboardButton(t(lang, "btn_clear_completed"), callback_data="list_clear")])
 
-    # Pagination row
     if total_pages > 1:
         nav = []
         if page > 0:
@@ -74,13 +74,14 @@ async def cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db = context.bot_data["db"]
     api = context.bot_data["api"]
     user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
     rows = await db.list_watches(user_id)
 
     if not rows:
-        await update.message.reply_text("No watches yet. Use /watch to start monitoring.")
+        await update.message.reply_text(t(lang, "no_watches"))
         return
 
-    text, keyboard = _build_list_message(rows, page=0, api=api)
+    text, keyboard = _build_list_message(rows, page=0, api=api, lang=lang)
     await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
@@ -91,9 +92,11 @@ async def list_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     db = context.bot_data["db"]
     api = context.bot_data["api"]
-    rows = await db.list_watches(update.effective_user.id)
+    user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
+    rows = await db.list_watches(user_id)
 
-    text, keyboard = _build_list_message(rows, page=page, api=api)
+    text, keyboard = _build_list_message(rows, page=page, api=api, lang=lang)
     await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
@@ -104,26 +107,30 @@ async def list_clear_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     db = context.bot_data["db"]
     api = context.bot_data["api"]
     user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
 
     deleted = await db.delete_completed_watches(user_id)
     rows = await db.list_watches(user_id)
 
     if not rows:
-        await query.edit_message_text(f"🗑 Cleared {deleted} completed watch(es). No active watches.")
+        await query.edit_message_text(t(lang, "cleared_no_active", count=deleted))
         return
 
-    text, keyboard = _build_list_message(rows, page=0, api=api)
-    text = f"🗑 Cleared {deleted} completed watch(es).\n\n" + text
+    text, keyboard = _build_list_message(rows, page=0, api=api, lang=lang)
+    text = t(lang, "cleared_prefix", count=deleted) + text
     await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    db = context.bot_data["db"]
+    user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
     if not context.args:
         await update.message.reply_text("Usage: /stop <watch_id>")
         return
     watch_id = int(context.args[0])
     await _stop_watch(watch_id, context)
-    await update.message.reply_text("🛑 Watch stopped.")
+    await update.message.reply_text(t(lang, "watch_stopped"))
 
 
 async def stop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -132,16 +139,17 @@ async def stop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     watch_id = int(query.data.split(":")[1])
     await _stop_watch(watch_id, context)
 
-    # Refresh the list in place
     db = context.bot_data["db"]
     api = context.bot_data["api"]
-    rows = await db.list_watches(update.effective_user.id)
+    user_id = update.effective_user.id
+    lang = await get_lang(user_id, context, db)
+    rows = await db.list_watches(user_id)
 
     if not rows:
-        await query.edit_message_text("🛑 Watch stopped. No more watches.")
+        await query.edit_message_text(t(lang, "stopped_no_watches"))
         return
 
-    text, keyboard = _build_list_message(rows, page=0, api=api)
+    text, keyboard = _build_list_message(rows, page=0, api=api, lang=lang)
     await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
 
 
