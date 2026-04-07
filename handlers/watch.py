@@ -50,7 +50,7 @@ def _date_keyboard() -> InlineKeyboardMarkup:
 
 def _time_keyboard() -> InlineKeyboardMarkup:
     rows = [
-        [InlineKeyboardButton(label, callback_data=f"time:{start}:{end}")]
+        [InlineKeyboardButton(label, callback_data=f"time:{start}|{end}")]
         for start, end, label in TIME_RANGES
     ]
     rows.append([InlineKeyboardButton("✏️ Ввести вручную", callback_data="time:manual")])
@@ -118,7 +118,7 @@ async def select_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     value = query.data.split(":", 1)[1]
 
     if value == "manual":
-        await query.edit_message_text("Введи дату в формате ДД.ММ.ГГГГ:")
+        await query.edit_message_text("Введи дату (ДД.ММ.ГГГГ):")
         context.user_data["awaiting"] = "date"
         return DATE
 
@@ -135,7 +135,7 @@ async def manual_date_input(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     try:
         datetime.strptime(text, "%d.%m.%Y")
     except ValueError:
-        await update.message.reply_text("Неверный формат. Введи дату как ДД.ММ.ГГГГ:")
+        await update.message.reply_text("Неверный формат. Введи дату (ДД.ММ.ГГГГ):")
         return DATE
 
     context.user_data["date"] = text
@@ -152,10 +152,10 @@ async def select_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     value = query.data.split(":", 1)[1]
 
     if value == "manual":
-        await query.edit_message_text("Введи время начала в формате ЧЧ:ММ:")
+        await query.edit_message_text("Введи время начала (ЧЧ:ММ):")
         return TIME_MANUAL_START
 
-    start, end = value.split(":")
+    start, end = value.split("|")
     context.user_data["start_time"] = start
     context.user_data["end_time"] = end
     return await _show_confirm(update, context)
@@ -166,11 +166,11 @@ async def manual_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     try:
         datetime.strptime(text, "%H:%M")
     except ValueError:
-        await update.message.reply_text("Неверный формат. Введи время начала как ЧЧ:ММ:")
+        await update.message.reply_text("Неверный формат. Введи время начала (ЧЧ:ММ):")
         return TIME_MANUAL_START
 
     context.user_data["start_time"] = text
-    await update.message.reply_text("Введи время окончания в формате ЧЧ:ММ:")
+    await update.message.reply_text("Введи время окончания (ЧЧ:ММ):")
     return TIME_MANUAL_END
 
 
@@ -179,7 +179,7 @@ async def manual_time_end(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         datetime.strptime(text, "%H:%M")
     except ValueError:
-        await update.message.reply_text("Неверный формат. Введи время окончания как ЧЧ:ММ:")
+        await update.message.reply_text("Неверный формат. Введи время окончания (ЧЧ:ММ):")
         return TIME_MANUAL_END
 
     context.user_data["end_time"] = text
