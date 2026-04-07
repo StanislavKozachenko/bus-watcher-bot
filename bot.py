@@ -1,9 +1,14 @@
 import asyncio
+import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 import os
-import time
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 
 from db import Database
 from watcher import run_watch
@@ -42,9 +47,7 @@ async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     end_time = context.args[4]
     user_id = update.effective_user.id
 
-    await db.add_watch(user_id, date, start_time, end_time, city_from_id, city_to_id)
-    watches = await db.get_active_watches()
-    new_watch_id = watches[-1][0]
+    new_watch_id = await db.add_watch(user_id, date, start_time, end_time, city_from_id, city_to_id)
 
     task = asyncio.create_task(
         run_watch(new_watch_id, user_id, date, start_time, end_time,
@@ -89,9 +92,11 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🛑 Мониторинг остановлен.")
 
 # -----------------------------
-# Восстановление активных задач
+# Инициализация при старте
 # -----------------------------
-async def restore_tasks(application):
+async def post_init(application):
+    await db.init()
+    await db.cleanup_old_watches()
     watches = await db.get_active_watches()
     for w_id, user_id, date, start_time, end_time, city_from_id, city_to_id in watches:
         task = asyncio.create_task(
@@ -101,35 +106,19 @@ async def restore_tasks(application):
         active_tasks[w_id] = task
 
 # -----------------------------
-# Main runners
+# Entry point
 # -----------------------------
-async def runner_main():
-    """Локальный запуск для разработки (PyCharm-safe)"""
-    await db.init()
-    await db.cleanup_old_watches()
+if __name__ == "__main__":
+    print("Running")
+    app = (ApplicationBuilder()
+           .token(BOT_TOKEN)
+           .post_init(post_init)
+           .build())
 
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("watch", cmd_watch))
     app.add_handler(CommandHandler("list", cmd_list))
     app.add_handler(CommandHandler("stop", cmd_stop))
 
-    await restore_tasks(app)
-    await app.initialize()
-    await app.start()
     print("Bot started")
-
-    offset = 0
-    while True:
-        updates = await app.bot.get_updates(offset=offset, timeout=10)
-        for upd in updates:
-            offset = upd.update_id + 1
-            await app.process_update(upd)
-        time.sleep(0.5)
-
-# -----------------------------
-# Entry point
-# -----------------------------
-if __name__ == "__main__":
-    print("Running")
-    asyncio.run(runner_main())
+    app.run_polling(drop_pending_updates=True)

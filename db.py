@@ -33,17 +33,18 @@ class Database:
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
                 "INSERT INTO history (timestamp, message) VALUES (?, ?)",
-                (datetime.datetime.now().isoformat(), msg)
+                (datetime.now().isoformat(), msg)
             )
             await db.commit()
 
-    async def add_watch(self, user_id, date, start_time, end_time, city_from_id, city_to_id):
+    async def add_watch(self, user_id, date, start_time, end_time, city_from_id, city_to_id) -> int:
         async with aiosqlite.connect(self.path) as db:
-            await db.execute(
+            cursor = await db.execute(
                 "INSERT INTO watches (user_id, date, start_time, end_time, city_from_id, city_to_id, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
                 (user_id, date, start_time, end_time, city_from_id, city_to_id)
             )
             await db.commit()
+            return cursor.lastrowid
 
     async def deactivate_watch(self, watch_id):
         async with aiosqlite.connect(self.path) as db:
