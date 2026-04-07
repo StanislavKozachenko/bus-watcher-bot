@@ -67,6 +67,14 @@ class Database:
             )
             return await cursor.fetchall()
 
+    async def delete_completed_watches(self, user_id: int) -> int:
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                "DELETE FROM watches WHERE user_id = ? AND active = 0", (user_id,)
+            )
+            await db.commit()
+            return cursor.rowcount
+
     async def cleanup_old_watches(self):
         """
         Деактивирует все активные Watch-записи, где дата поездки прошла на день и более.
