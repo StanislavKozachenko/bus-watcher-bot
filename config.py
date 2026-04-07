@@ -13,3 +13,8 @@ TIME_RANGES = [
     ("14:00", "18:00", "День 14–18"),
     ("18:00", "22:00", "Вечер 18–22"),
 ]
+
+# City IDs shown as a pinned row at the top of the city picker
+FEATURED_CITY_IDS: list[int] = [1]  # 1 = Минск
+
+LIST_PAGE_SIZE: int = 8

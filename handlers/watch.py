@@ -13,7 +13,7 @@ from telegram.ext import (
     filters,
 )
 
-from config import TIME_RANGES, TZ
+from config import FEATURED_CITY_IDS, TIME_RANGES, TZ
 from services.smilebus import SmileBusAPI
 from services.watcher import run_watch
 
@@ -26,11 +26,19 @@ _CHUNK = 3  # buttons per row
 
 
 def _city_keyboard(cities: dict[int, str]) -> InlineKeyboardMarkup:
-    items = sorted(cities.items(), key=lambda x: x[1])
-    rows = [
-        [InlineKeyboardButton(name, callback_data=f"city:{cid}") for cid, name in items[i: i + _CHUNK]]
-        for i in range(0, len(items), _CHUNK)
+    featured = [(cid, f"⭐ {name}") for cid, name in cities.items() if cid in FEATURED_CITY_IDS]
+    regular = sorted(
+        [(cid, name) for cid, name in cities.items() if cid not in FEATURED_CITY_IDS],
+        key=lambda x: x[1],
+    )
+    rows = []
+    if featured:
+        rows.append([InlineKeyboardButton(name, callback_data=f"city:{cid}") for cid, name in featured])
+    rows += [
+        [InlineKeyboardButton(name, callback_data=f"city:{cid}") for cid, name in regular[i: i + _CHUNK]]
+        for i in range(0, len(regular), _CHUNK)
     ]
+    rows.append([InlineKeyboardButton("❌ Cancel", callback_data="watch_cancel")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -44,6 +52,7 @@ def _date_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("+2 дня", callback_data=f"date:{(today + timedelta(days=2)).strftime('%d.%m.%Y')}"),
         ],
         [InlineKeyboardButton("✏️ Ввести дату", callback_data="date:manual")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="watch_cancel")],
     ]
     return InlineKeyboardMarkup(buttons)
 
@@ -54,6 +63,7 @@ def _time_keyboard() -> InlineKeyboardMarkup:
         for start, end, label in TIME_RANGES
     ]
     rows.append([InlineKeyboardButton("✏️ Ввести вручную", callback_data="time:manual")])
+    rows.append([InlineKeyboardButton("❌ Cancel", callback_data="watch_cancel")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -61,7 +71,7 @@ def _confirm_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("✅ Запустить", callback_data="confirm:yes"),
-            InlineKeyboardButton("❌ Отмена", callback_data="confirm:no"),
+            InlineKeyboardButton("❌ Отмена", callback_data="watch_cancel"),
         ]
     ])
 
@@ -210,10 +220,6 @@ async def confirm_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     query = update.callback_query
     await query.answer()
 
-    if query.data == "confirm:no":
-        await query.edit_message_text("❌ Отменено.")
-        return ConversationHandler.END
-
     ud = context.user_data
     db = context.bot_data["db"]
     api: SmileBusAPI = context.bot_data["api"]
@@ -250,6 +256,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+async def cancel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("❌ Cancelled.")
+    return ConversationHandler.END
+
+
 def build_watch_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
@@ -272,6 +285,9 @@ def build_watch_handler() -> ConversationHandler:
             ],
             CONFIRM: [CallbackQueryHandler(confirm_watch, pattern=r"^confirm:")],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[
+            CommandHandler("cancel", cancel),
+            CallbackQueryHandler(cancel_callback, pattern=r"^watch_cancel$"),
+        ],
         per_message=False,
     )
