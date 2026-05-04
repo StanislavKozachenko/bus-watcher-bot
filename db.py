@@ -36,6 +36,13 @@ class Database:
                     lang TEXT NOT NULL DEFAULT 'ru'
                 )
             """)
+            try:
+                await db.execute(
+                    "ALTER TABLE watches ADD COLUMN min_seats INTEGER NOT NULL DEFAULT 1"
+                )
+                await db.commit()
+            except Exception:
+                pass  # column already exists
             await db.commit()
 
     async def add_history(self, msg: str):
@@ -46,11 +53,11 @@ class Database:
             )
             await db.commit()
 
-    async def add_watch(self, user_id, date, start_time, end_time, city_from_id, city_to_id) -> int:
+    async def add_watch(self, user_id, date, start_time, end_time, city_from_id, city_to_id, min_seats: int = 1) -> int:
         async with aiosqlite.connect(self.path) as db:
             cursor = await db.execute(
-                "INSERT INTO watches (user_id, date, start_time, end_time, city_from_id, city_to_id, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
-                (user_id, date, start_time, end_time, city_from_id, city_to_id)
+                "INSERT INTO watches (user_id, date, start_time, end_time, city_from_id, city_to_id, active, min_seats) VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+                (user_id, date, start_time, end_time, city_from_id, city_to_id, min_seats)
             )
             await db.commit()
             return cursor.lastrowid
@@ -62,13 +69,13 @@ class Database:
 
     async def get_active_watches(self):
         async with aiosqlite.connect(self.path) as db:
-            cursor = await db.execute("SELECT id, user_id, date, start_time, end_time, city_from_id, city_to_id FROM watches WHERE active = 1")
+            cursor = await db.execute("SELECT id, user_id, date, start_time, end_time, city_from_id, city_to_id, min_seats FROM watches WHERE active = 1")
             return await cursor.fetchall()
 
     async def list_watches(self, user_id):
         async with aiosqlite.connect(self.path) as db:
             cursor = await db.execute(
-                "SELECT id, date, start_time, end_time, city_from_id, city_to_id, active FROM watches WHERE user_id = ?",
+                "SELECT id, date, start_time, end_time, city_from_id, city_to_id, active, min_seats FROM watches WHERE user_id = ?",
                 (user_id,)
             )
             return await cursor.fetchall()

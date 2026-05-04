@@ -16,7 +16,8 @@ STRINGS: dict[str, dict] = {
             "  2. Выбери город назначения\n"
             "  3. Выбери дату\n"
             "  4. Выбери диапазон времени (или введи вручную)\n"
-            "  5. Подтверди — бот будет проверять каждые 10 сек\n\n"
+            "  5. Выбери минимальное кол-во мест\n"
+            "  6. Подтверди — бот будет проверять каждые 10 сек\n\n"
             "/list — список твоих задач с кнопкой остановки\n"
             "/stop <id> — остановить мониторинг по ID\n"
             "/language — сменить язык\n"
@@ -34,8 +35,11 @@ STRINGS: dict[str, dict] = {
         "time_start_invalid": "Неверный формат. Введи время начала (ЧЧ:ММ):",
         "enter_time_end": "Введи время окончания (ЧЧ:ММ):",
         "time_end_invalid": "Неверный формат. Введи время окончания (ЧЧ:ММ):",
-        "confirm_text": "Подтверди запуск мониторинга:\n\nМаршрут: {from_name} → {to_name}\nДата: {date}\nВремя: {start} — {end}",
-        "watch_started_msg": "🔍 Мониторинг запущен!\n\nМаршрут: {from_name} → {to_name}\nДата: {date}\nВремя: {start} — {end}",
+        "select_seats": "Выбери минимальное кол-во мест:",
+        "enter_seats_manual": "Введи кол-во мест (число ≥ 1):",
+        "seats_invalid": "Неверный ввод. Введи целое число ≥ 1:",
+        "confirm_text": "Подтверди запуск мониторинга:\n\nМаршрут: {from_name} → {to_name}\nДата: {date}\nВремя: {start} — {end}\nМест: ≥{min_seats}",
+        "watch_started_msg": "🔍 Мониторинг запущен!\n\nМаршрут: {from_name} → {to_name}\nДата: {date}\nВремя: {start} — {end}\nМест: ≥{min_seats}",
         "watch_cancelled": "❌ Отменено.",
         "btn_today": "Сегодня",
         "btn_tomorrow": "Завтра",
@@ -75,7 +79,8 @@ STRINGS: dict[str, dict] = {
             "  2. Choose destination city\n"
             "  3. Choose date\n"
             "  4. Choose time range (or enter manually)\n"
-            "  5. Confirm — bot checks every 10 sec\n\n"
+            "  5. Choose minimum number of seats\n"
+            "  6. Confirm — bot checks every 10 sec\n\n"
             "/list — your watches with stop button\n"
             "/stop <id> — stop watch by ID\n"
             "/language — change language\n"
@@ -93,8 +98,11 @@ STRINGS: dict[str, dict] = {
         "time_start_invalid": "Wrong format. Enter start time (HH:MM):",
         "enter_time_end": "Enter end time (HH:MM):",
         "time_end_invalid": "Wrong format. Enter end time (HH:MM):",
-        "confirm_text": "Confirm monitoring:\n\nRoute: {from_name} → {to_name}\nDate: {date}\nTime: {start} — {end}",
-        "watch_started_msg": "🔍 Monitoring started!\n\nRoute: {from_name} → {to_name}\nDate: {date}\nTime: {start} — {end}",
+        "select_seats": "Choose minimum number of seats:",
+        "enter_seats_manual": "Enter number of seats (≥ 1):",
+        "seats_invalid": "Invalid input. Enter a whole number ≥ 1:",
+        "confirm_text": "Confirm monitoring:\n\nRoute: {from_name} → {to_name}\nDate: {date}\nTime: {start} — {end}\nSeats: ≥{min_seats}",
+        "watch_started_msg": "🔍 Monitoring started!\n\nRoute: {from_name} → {to_name}\nDate: {date}\nTime: {start} — {end}\nSeats: ≥{min_seats}",
         "watch_cancelled": "❌ Cancelled.",
         "btn_today": "Today",
         "btn_tomorrow": "Tomorrow",
