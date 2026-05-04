@@ -10,12 +10,12 @@ from services.smilebus import SmileBusAPI
 logger = logging.getLogger(__name__)
 
 
-def _find_in_range(schedule: list, start_time_str: str, end_time_str: str) -> dict | None:
+def _find_in_range(schedule: list, start_time_str: str, end_time_str: str, min_seats: int = 1) -> dict | None:
     start = datetime.strptime(start_time_str, "%H:%M").time()
     end = datetime.strptime(end_time_str, "%H:%M").time()
     for item in schedule:
         t_val = datetime.strptime(item["time"], "%H:%M").time()
-        if start <= t_val <= end and item["count"] > 0:
+        if start <= t_val <= end and item["count"] >= min_seats:
             return item
     return None
 
@@ -31,6 +31,7 @@ async def run_watch(
     bot,
     db,
     api: SmileBusAPI,
+    min_seats: int = 1,
 ) -> None:
     lang = await db.get_user_lang(user_id)
     tz = pytz.timezone("Europe/Minsk")
@@ -49,7 +50,7 @@ async def run_watch(
 
         try:
             schedule = await api.fetch_schedule(date, city_from_id, city_to_id)
-            found = _find_in_range(schedule, start_time, end_time)
+            found = _find_in_range(schedule, start_time, end_time, min_seats)
             if found:
                 await bot.send_message(
                     chat_id=user_id,

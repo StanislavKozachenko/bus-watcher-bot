@@ -42,10 +42,10 @@ async def post_init(application) -> None:
     ])
 
     watches = await db.get_active_watches()
-    for w_id, user_id, date, start_time, end_time, city_from_id, city_to_id in watches:
+    for w_id, user_id, date, start_time, end_time, city_from_id, city_to_id, min_seats in watches:
         task = asyncio.create_task(
             run_watch(w_id, user_id, date, start_time, end_time,
-                      city_from_id, city_to_id, application.bot, db, api)
+                      city_from_id, city_to_id, application.bot, db, api, min_seats)
         )
         active_tasks[w_id] = task
         logger.info("Restored watch #%d", w_id)

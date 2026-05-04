@@ -21,7 +21,7 @@ from services.watcher import run_watch
 logger = logging.getLogger(__name__)
 
 # Conversation states
-FROM_CITY, TO_CITY, DATE, TIME_MANUAL_START, TIME_MANUAL_END, CONFIRM = range(6)
+FROM_CITY, TO_CITY, DATE, TIME_MANUAL_START, TIME_MANUAL_END, SEATS, CONFIRM = range(7)
 
 _CHUNK = 3  # buttons per row
 
@@ -67,6 +67,18 @@ def _time_keyboard(lang: str) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(t(lang, "btn_enter_manual"), callback_data="time:manual")])
     rows.append([InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="watch_cancel")])
     return InlineKeyboardMarkup(rows)
+
+
+def _seats_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("1", callback_data="seats:1"),
+            InlineKeyboardButton("2", callback_data="seats:2"),
+            InlineKeyboardButton("3", callback_data="seats:3"),
+        ],
+        [InlineKeyboardButton(t(lang, "btn_enter_manual"), callback_data="seats:manual")],
+        [InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="watch_cancel")],
+    ])
 
 
 def _confirm_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -184,7 +196,7 @@ async def select_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     start, end = value.split("|")
     context.user_data["start_time"] = start
     context.user_data["end_time"] = end
-    return await _show_confirm(update, context, lang)
+    return await _show_seats(update, context, lang)
 
 
 async def manual_time_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -213,6 +225,43 @@ async def manual_time_end(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return TIME_MANUAL_END
 
     context.user_data["end_time"] = text
+    return await _show_seats(update, context, lang)
+
+
+async def _show_seats(update: Update, context: ContextTypes.DEFAULT_TYPE, lang: str) -> int:
+    text = t(lang, "select_seats")
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=_seats_keyboard(lang))
+    else:
+        await update.message.reply_text(text, reply_markup=_seats_keyboard(lang))
+    return SEATS
+
+
+async def select_seats(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    value = query.data.split(":")[1]
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
+
+    if value == "manual":
+        await query.edit_message_text(t(lang, "enter_seats_manual"))
+        return SEATS
+
+    context.user_data["min_seats"] = int(value)
+    return await _show_confirm(update, context, lang)
+
+
+async def manual_seats_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+    db = context.bot_data["db"]
+    lang = await get_lang(update.effective_user.id, context, db)
+
+    if not text.isdigit() or int(text) < 1:
+        await update.message.reply_text(t(lang, "seats_invalid"))
+        return SEATS
+
+    context.user_data["min_seats"] = int(text)
     return await _show_confirm(update, context, lang)
 
 
@@ -223,7 +272,8 @@ async def _show_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE, lang
     to_name = api.city_name(ud["to_id"])
 
     text = t(lang, "confirm_text", from_name=from_name, to_name=to_name,
-             date=ud["date"], start=ud["start_time"], end=ud["end_time"])
+             date=ud["date"], start=ud["start_time"], end=ud["end_time"],
+             min_seats=ud["min_seats"])
 
     if update.callback_query:
         await update.callback_query.edit_message_text(text, reply_markup=_confirm_keyboard(lang))
@@ -245,13 +295,13 @@ async def confirm_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     watch_id = await db.add_watch(
         user_id, ud["date"], ud["start_time"], ud["end_time"],
-        ud["from_id"], ud["to_id"],
+        ud["from_id"], ud["to_id"], ud["min_seats"],
     )
 
     task = asyncio.create_task(
         run_watch(
             watch_id, user_id, ud["date"], ud["start_time"], ud["end_time"],
-            ud["from_id"], ud["to_id"], context.bot, db, api,
+            ud["from_id"], ud["to_id"], context.bot, db, api, ud["min_seats"],
         )
     )
     active_tasks[watch_id] = task
@@ -261,7 +311,8 @@ async def confirm_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     await query.edit_message_text(
         t(lang, "watch_started_msg", from_name=from_name, to_name=to_name,
-          date=ud["date"], start=ud["start_time"], end=ud["end_time"])
+          date=ud["date"], start=ud["start_time"], end=ud["end_time"],
+          min_seats=ud["min_seats"])
     )
     return ConversationHandler.END
 
@@ -301,6 +352,10 @@ def build_watch_handler() -> ConversationHandler:
             ],
             TIME_MANUAL_END: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, manual_time_end),
+            ],
+            SEATS: [
+                CallbackQueryHandler(select_seats, pattern=r"^seats:"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, manual_seats_input),
             ],
             CONFIRM: [CallbackQueryHandler(confirm_watch, pattern=r"^confirm:")],
         },
