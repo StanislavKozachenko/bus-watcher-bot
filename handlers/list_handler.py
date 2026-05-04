@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def _sort_key(row):
     """Active first, then by travel date descending."""
-    w_id, date, start, end, from_id, to_id, active = row
+    w_id, date, start, end, from_id, to_id, active, *_ = row
     try:
         parsed = datetime.strptime(date, "%d.%m.%Y")
     except ValueError:
@@ -34,7 +34,7 @@ def _build_list_message(rows: list, page: int, api, lang: str) -> tuple[str, Inl
     lines = []
     last_group = None
     for row in page_rows:
-        w_id, date, start, end, from_id, to_id, active = row
+        w_id, date, start, end, from_id, to_id, active, *_ = row
         group = "active" if active else "done"
         if group != last_group:
             lines.append(t(lang, "section_active") if active else t(lang, "section_completed"))
@@ -49,7 +49,7 @@ def _build_list_message(rows: list, page: int, api, lang: str) -> tuple[str, Inl
     buttons = []
 
     for row in page_rows:
-        w_id, date, start, end, from_id, to_id, active = row
+        w_id, date, start, end, from_id, to_id, active, *_ = row
         if active:
             buttons.append([InlineKeyboardButton(
                 t(lang, "btn_stop", watch_id=w_id), callback_data=f"stop:{w_id}"
